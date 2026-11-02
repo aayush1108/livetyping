@@ -1,0 +1,65 @@
+# Live Typing Indicator - translation template
+# Copyright (C) 2026 Aayush
+# This file is distributed under the same license as the plugin (GPL-3.0-or-later).
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: livetyping 1.1.0\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Please wait a moment before saving again."
+msgstr ""
+
+msgid "Settings saved."
+msgstr ""
+
+msgid "Settings could not be saved. Please try again."
+msgstr ""
+
+msgid "Live typing indicator"
+msgstr ""
+
+msgid "Enable the typing indicator"
+msgstr ""
+
+msgid "Shows \"Name is typing…\" on a ticket while a colleague is writing a reply, so two people do not answer at the same time."
+msgstr ""
+
+msgid "Refresh interval"
+msgstr ""
+
+msgid "%d seconds"
+msgstr ""
+
+msgid "How often an open ticket checks who is typing. Shorter is more \"live\" but adds server load (about one small request per open ticket per interval)."
+msgstr ""
+
+msgid "Who can use this plugin"
+msgstr ""
+
+msgid "All profiles"
+msgstr ""
+
+msgid "Only the selected profiles"
+msgstr ""
+
+msgid "Only people whose active profile is allowed send and see the indicator. People can only ever see who is typing on tickets they are allowed to view. Names follow GLPI's anonymisation setting for the simplified interface."
+msgstr ""
+
+msgid "Someone"
+msgstr ""
+
+msgid "%s is typing…"
+msgstr ""
+
+msgid "%1$s and %2$s are typing…"
+msgstr ""
+
+msgid "%1$s, %2$s and %3$s are typing…"
+msgstr ""
+
+msgid "Several people are typing…"
+msgstr ""
