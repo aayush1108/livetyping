@@ -1,91 +1,87 @@
 <?php
 
-declare(strict_types=1);
-
 /**
- * Live typing indicator: shows who else is typing a reply on the ticket you are viewing.
+ * -------------------------------------------------------------------------
+ * Typing Indicator plugin for GLPI
+ * -------------------------------------------------------------------------
+ * Shows "Jane Doe is typing a comment…" below the "Answer / Add a followup"
+ * area of Tickets, Problems and Changes while another user is writing.
  *
- * @copyright 2026 Aayush
- * @license   GPL-3.0-or-later
+ * Compatible with GLPI 10.0.x, 11.x and 12.x.
+ *
+ * @license GPLv3+
+ * -------------------------------------------------------------------------
  */
 
-use Glpi\Plugin\Hooks;
-use GlpiPlugin\Livetyping\Access;
-use GlpiPlugin\Livetyping\Cleanup;
+use GlpiPlugin\Typingindicator\Settings;
 
-if (!defined('GLPI_ROOT')) {
-    die("Sorry. You can't access this file directly");
+define('PLUGIN_TYPINGINDICATOR_VERSION', '1.3.0');
+define('PLUGIN_TYPINGINDICATOR_MIN_GLPI', '10.0.0');
+// "max" is exclusive in GLPI requirement checks.
+define('PLUGIN_TYPINGINDICATOR_MAX_GLPI', '12.99.99');
+
+/**
+ * Plugin initialisation (called on every request).
+ */
+function plugin_init_typingindicator()
+{
+    global $PLUGIN_HOOKS;
+
+    // GLPI 10 needs this flag; GLPI 11+ ignores it (CSRF is always enforced).
+    $PLUGIN_HOOKS['csrf_compliant']['typingindicator'] = true;
+
+    if (!Plugin::isPluginActive('typingindicator')) {
+        return;
+    }
+
+    // Settings page (Setup > Plugins > wrench icon), administrators only.
+    if (Session::haveRight('config', UPDATE)) {
+        $PLUGIN_HOOKS['config_page']['typingindicator'] = 'front/config.form.php';
+    }
+
+    // Assets are only sent to users allowed to see or broadcast.
+    if (Settings::canSee() || Settings::canBroadcast()) {
+        // GLPI 11+ serves the plugin "public/" directory at the plugin root URL,
+        // GLPI 10 serves the whole plugin directory.
+        $prefix = version_compare(GLPI_VERSION, '11.0.0-dev', '>=') ? '' : 'public/';
+
+        $PLUGIN_HOOKS['add_javascript']['typingindicator'][] = $prefix . 'js/typingindicator.js';
+        $PLUGIN_HOOKS['add_css']['typingindicator'][]        = $prefix . 'css/typingindicator.css';
+    }
 }
 
-define('PLUGIN_LIVETYPING_VERSION', '1.1.0');
-define('PLUGIN_LIVETYPING_MIN_GLPI', '11.0.6');
-define('PLUGIN_LIVETYPING_MIN_PHP', '8.2');
-
 /**
- * Plugin description (shown in Setup > Plugins).
+ * Plugin metadata.
  */
-function plugin_version_livetyping(): array
+function plugin_version_typingindicator()
 {
     return [
-        'name'         => 'Live Typing Indicator',
-        'version'      => PLUGIN_LIVETYPING_VERSION,
-        'author'       => 'Aayush',
+        'name'         => __('Typing indicator', 'typingindicator'),
+        'version'      => PLUGIN_TYPINGINDICATOR_VERSION,
+        'author'       => 'Typing Indicator contributors',
         'license'      => 'GPLv3+',
+        'homepage'     => '',
         'requirements' => [
-            'glpi' => ['min' => PLUGIN_LIVETYPING_MIN_GLPI],
-            'php'  => ['min' => PLUGIN_LIVETYPING_MIN_PHP],
+            'glpi' => [
+                'min' => PLUGIN_TYPINGINDICATOR_MIN_GLPI,
+                'max' => PLUGIN_TYPINGINDICATOR_MAX_GLPI,
+            ],
+            'php'  => [
+                'min' => '7.4',
+            ],
         ],
     ];
 }
 
-function plugin_livetyping_check_prerequisites(): bool
-{
-    if (version_compare(GLPI_VERSION, PLUGIN_LIVETYPING_MIN_GLPI, '<')) {
-        echo 'This plugin requires GLPI >= ' . PLUGIN_LIVETYPING_MIN_GLPI;
-        return false;
-    }
-    if (version_compare(PHP_VERSION, PLUGIN_LIVETYPING_MIN_PHP, '<')) {
-        echo 'This plugin requires PHP >= ' . PLUGIN_LIVETYPING_MIN_PHP;
-        return false;
-    }
-    return true;
-}
-
-function plugin_livetyping_check_config($verbose = false): bool
-{
-    return true;
-}
-
 /**
- * Plugin initialisation (runs on every request while the plugin is active).
- * Must never throw and must stay cheap: the browser script is only added on
- * ticket pages, and only when the plugin is enabled for the user's profile.
+ * Requirements are declared in plugin_version_typingindicator().
  */
-function plugin_init_livetyping(): void
+function plugin_typingindicator_check_prerequisites()
 {
-    global $PLUGIN_HOOKS;
+    return true;
+}
 
-    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['livetyping'] = true;
-
-    if (!Plugin::isPluginActive('livetyping')) {
-        return;
-    }
-
-    // Remove the plugin's own rows when a ticket, a user or a profile is purged
-    $PLUGIN_HOOKS[Hooks::ITEM_PURGE]['livetyping'] = [
-        'Ticket'  => [Cleanup::class, 'purgeTicket'],
-        'User'    => [Cleanup::class, 'purgeUser'],
-        'Profile' => [Cleanup::class, 'purgeProfile'],
-    ];
-
-    // Admin page (Setup > Plugins > Live Typing Indicator): rights are checked on the page itself
-    $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['livetyping'] = 'front/config.php';
-
-    // Browser script + style: ticket pages only (cheap string test first, no database access
-    // on any other page), then the cached, never-throwing profile check.
-    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-    if (str_contains($uri, '/front/ticket.form.php') && Access::isActiveForSession()) {
-        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['livetyping'] = ['js/typing.js'];
-        $PLUGIN_HOOKS[Hooks::ADD_CSS]['livetyping']        = ['css/typing.css'];
-    }
+function plugin_typingindicator_check_config($verbose = false)
+{
+    return true;
 }

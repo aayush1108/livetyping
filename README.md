@@ -1,69 +1,101 @@
-# Live Typing Indicator (livetyping)
+# Typing Indicator for GLPI
 
-**Author:** Aayush  |  **Version:** 1.1.0  |  **License:** GPL-3.0-or-later
-**Requires:** GLPI 11.0.6 or newer, PHP 8.2+
+Shows a live blue **"Jane Doe typing…"** line directly under the comment box of Tickets,
+Problems and Changes while another user is writing.
 
-Shows "**Maria Lopez is typing…**" at the bottom of a ticket while a colleague is writing a reply, so two people
-do not answer the same ticket at the same time.
+| GLPI | Supported |
+|------|-----------|
+| 10.0.x | ✅ |
+| 11.x | ✅ |
+| 12.x | ✅ Adapted to GLPI 12 (no CSRF tokens: browser Sec-Fetch-Site/Origin check; PHP 8.3) |
 
-## Install
+## Features
 
-1. Copy the `livetyping` folder into GLPI's `plugins/` directory
-   (final path: `<glpi>/plugins/livetyping/setup.php`).
-2. In GLPI go to **Setup > Plugins**, click **Install**, then **Enable**.
-3. Optional: **Setup > Plugins > Live Typing Indicator** (gear icon) to choose the refresh interval and which
-   profiles can use it. Everything is on for all profiles by default.
+- Detects typing in followups (comments), tasks and solutions — TinyMCE or plain textarea.
+- Always one blue line directly under the comment (followup) editor; it can't be stretched by GLPI's layout.
+- *"Jane Doe typing…"*, *"Jane Doe & Bob Smith typing…"*, *"Jane Doe, Bob Smith & Li Wei typing…"*, *"Jane Doe, Bob Smith & 3 others typing…"*.
+- **Private followups** are only announced to users allowed to see private followups.
+- Respects ticket visibility: you only get typing info for items you can open.
+- No cron needed — heartbeats expire after 8 seconds (closed tab = indicator disappears).
+- Polling slows down when the browser tab is hidden.
+
+## Who can use it (admin only)
+
+**Setup → Plugins → Typing indicator** (wrench icon). Only administrators who can update the
+general configuration (Super-Admin) can open this page.
+
+| Setting | Effect |
+|---------|--------|
+| **Enable the typing indicator** | Global on/off switch. |
+| **Can see who is typing** — profiles / groups | The indicator is shown to these users. |
+| **Is shown to others when typing** — profiles / groups | These users' typing is announced to others. |
+
+A user is allowed when their **active profile OR one of their groups** is selected. Leaving both
+empty allows nobody. On first install only Super-Admin profiles are selected.
+
+Regular users have no settings at all — they only see the indicator when allowed.
+
+## Database impact
+
+| Table | What the plugin does |
+|-------|----------------------|
+| `glpi_plugin_typingindicator_typings` (own table) | Create / read / write. At most **one row per user**, rows expire after 8 s and are purged after 2 min. |
+| `glpi_configs` | Stores its 5 settings under context `plugin:typingindicator` only. |
+| `glpi_profiles`, `glpi_groups`, `glpi_profilerights`, `glpi_users` | **Read only.** |
+| `glpi_profilerights` | On install, deletes only the obsolete `plugin_typingindicator` right left by v1.0.0, if present. |
+
+No core table is altered, no ticket/followup data is read or stored, and the typed text is
+**never sent** to the server — only "user X is typing a followup/task/solution on item Y".
+Uninstall drops the plugin table and deletes its settings rows.
+
+## Security
+
+- Login required; the item must be readable by the user (GLPI's own permission check).
+- Settings page needs the *update general configuration* right (Super-Admin).
+- `itemtype` and `kind` are whitelisted; ids cast to integers; all SQL goes through GLPI's query builder.
+- State-changing requests are POST-only and CSRF-protected by GLPI (token on 10/11, browser Sec-Fetch-Site/Origin check on 12).
+- A user can only create or delete **their own** typing status.
+- Private followups and tasks are announced only to users who can see them; self-service users without task rights never see task typing.
+- Inactive/deleted users are never shown; responses expose display names only (no ids, logins, emails).
+- XSS: the browser inserts text with `textContent` only; the settings page escapes every label with `htmlspecialchars`; JSON is sent with `nosniff` and `<`, `>`, `&`, quotes escaped. Names are normalised once, so GLPI 10's HTML-encoded names are neither double-encoded nor executed.
+
+## Installation
+
+1. Copy the `typingindicator` folder into `glpi/plugins/` (or `glpi/marketplace/`).
+2. **Setup → Plugins** → *Typing indicator* → **Install**, then **Enable**.
+3. Open the settings page and pick the profiles and groups (see above).
+
+CLI alternative:
+
+```bash
+php bin/console glpi:plugin:install typingindicator --username=glpi
+php bin/console glpi:plugin:activate typingindicator
+```
 
 ## How it works
 
-- The indicator is added **only on ticket pages** (`/front/ticket.form.php?id=...`) and only for allowed profiles.
-- While you type in a reply, task or solution box, your browser tells the server "typing" at most once every
-  3 seconds, and "stopped" 4 seconds after your last key (or when you send, or leave the page).
-- Every open ticket checks who else is typing once per refresh interval (default 5 s, admin choice 3-30 s)
-  and only while the browser tab is visible. Someone counts as typing for 10 seconds after their last signal.
-- It is "live" within a few seconds (polling), not instant.
+- `public/js/typingindicator.js` sends a `ping` every ~2.5 s while the user types and a `stop` after 4 s idle or on submit.
+- It polls `ajax/typing.php?action=poll` every 3 s and renders the indicator.
+- Data is stored in `glpi_plugin_typingindicator_typings` (one row per user/item).
+- POST requests use GLPI's standard `X-Glpi-Csrf-Token` header.
 
-## Privacy and security design
+## Files
 
-- **Who sees whom:** a person only learns who is typing on tickets they are allowed to view (GLPI's own
-  `canViewItem()` rules). Names come from GLPI's own `getUserName()`, so its anonymisation setting for the
-  simplified interface is respected. Only names are sent, never user ids. Nothing is stored beyond a
-  short-lived row per (ticket, user), which is deleted when typing stops and cleaned up automatically.
-- **Access control:** login required; the plugin must be enabled for the user's active profile; the admin page
-  needs the GLPI `config` update right (checked first). Refusals are generic and never reveal whether a ticket
-  exists.
-- **CSRF:** GLPI enforces its token on every POST (the script sends GLPI's `X-Glpi-Csrf-Token` header).
-- **Cross-site scripting:** the browser script never builds HTML. The server text is shown with `textContent`
-  only (no `innerHTML`/`eval`), names are cleaned (single line, 60 characters, no control characters) and sent
-  as JSON. The admin page escapes everything and contains no JavaScript and no inline styles. The script and
-  stylesheet are plain files served by GLPI, so a strict Content-Security-Policy works.
-- **Denial of service:** a per-session rate limit (10 requests / 5 s, shared by all tabs) checked before any
-  database access; every query is bounded and indexed (at most 5 rows read per poll, rows per user bounded); the
-  browser polls only while the tab is visible, with random jitter, sends at most one "typing" signal per 3 s and
-  backs off exponentially on errors. It pauses after repeated failures and resumes by itself (tab shown, network
-  back, page restored); it stops for good only on "forbidden" or when the login session is gone. Inputs are strictly
-  validated; log lines are capped and sanitised.
-- **Independence:** the plugin only creates, reads and drops its own three tables
-  (`glpi_plugin_livetyping_states`, `_settings`, `_profiles`) and never changes GLPI core data. Disabling or
-  uninstalling it restores stock behaviour; the browser script is simply no longer loaded.
-- **Code hygiene:** `declare(strict_types=1)` everywhere, direct file access refused, GLPI's query builder for all
-  database access, no dynamic code execution, no file access, no outbound network calls, no dependencies.
+```
+typingindicator/
+├── setup.php                  plugin declaration, hooks, version constraints
+├── hook.php                   install / uninstall
+├── src/Settings.php           admin settings (profiles / groups)
+├── front/config.form.php      admin settings page
+├── src/Typing.php             storage + message building
+├── ajax/typing.php            ping / stop / poll endpoint
+└── public/
+    ├── js/typingindicator.js
+    └── css/typingindicator.css
+```
 
-## Server load
+## Uninstall
 
-About one small request per **open ticket tab per refresh interval** (tabs in the background send nothing).
-For example 100 visible ticket tabs at 5 s is about 20 small requests per second. Raise the interval on the
-admin page if your server is small.
+Uninstalling drops the table and deletes the plugin settings.
 
-## Upgrading from 1.0.0
-
-Copy the new files over the old ones, then in **Setup > Plugins** click **Install/Update** on the plugin. This only
-adds one database index. See `CHANGELOG.md`. Security policy and threat model: `SECURITY.md`. Translations: copy
-`locales/livetyping.pot` to `locales/<language>.po` and compile it.
-
-## Notes
-
-- Typing is detected in editors named `content` (ticket reply, task and solution boxes, plain or TinyMCE).
-- Works for the standard and the simplified interface (subject to the profile setting).
-- The files `public/js/typing.js` and `public/css/typing.css` are cached by browsers; the plugin version is
-  added to their URL, so an upgrade is picked up automatically.
+License: GPLv3+

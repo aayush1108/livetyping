@@ -1,0 +1,92 @@
+/* Typing Indicator plugin for GLPI
+ * One line of blue text directly under the comment editor:
+ *   "Jane Doe typing…", "Jane Doe & Bob Smith typing…"
+ * Hardened so a flex/grid parent can never stretch it into a column.
+ */
+
+.typingindicator {
+    display: none;
+    box-sizing: border-box;
+    width: 100%;
+    flex: 0 0 100%;          /* if the parent is a flex row: own full line */
+    grid-column: 1 / -1;     /* if the parent is a grid: own full line */
+    align-self: flex-start;
+    height: auto;
+    min-height: 0;
+    max-height: 2.5em;
+    margin: .35rem 0 .5rem;
+    padding: 0 .15rem;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    align-items: center;
+    gap: .45rem;
+    font-size: .85rem;
+    font-style: italic;
+    line-height: 1.4;
+    color: #1a5fb4;          /* blue: 6.3:1 on white, 5.2:1 on GLPI's light grey */
+}
+
+[data-glpi-theme-dark="1"] .typingindicator,
+[data-bs-theme="dark"] .typingindicator {
+    color: #6cb4f5;          /* lighter blue for dark palettes */
+}
+
+.typingindicator.is-visible {
+    display: flex;
+    animation: typingindicator-fade .2s ease-out;
+}
+
+.typingindicator-dots {
+    display: inline-flex;
+    gap: 3px;
+    flex: 0 0 auto;
+}
+
+.typingindicator-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: typingindicator-bounce 1.2s infinite ease-in-out;
+}
+
+.typingindicator-dots span:nth-child(2) { animation-delay: .15s; }
+.typingindicator-dots span:nth-child(3) { animation-delay: .3s; }
+
+.typingindicator-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Fallback only when the page has no comment box */
+.typingindicator-floating {
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 1050;
+    width: auto;
+    max-width: calc(100vw - 2rem);
+    padding: .4rem .8rem;
+    background: var(--tblr-bg-surface, #fff);
+    border: 1px solid var(--tblr-border-color, #e6e7e9);
+    border-radius: 999px;
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .12);
+}
+
+@keyframes typingindicator-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+    30%           { transform: translateY(-3px); opacity: 1; }
+}
+
+@keyframes typingindicator-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .typingindicator-dots span,
+    .typingindicator.is-visible { animation: none; }
+}
